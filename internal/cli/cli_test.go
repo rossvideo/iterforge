@@ -407,6 +407,31 @@ experiment:
 	}
 }
 
+func TestBadFlagReturnsCodeNotExit(t *testing.T) {
+	// Each command must return an exit code for an unknown flag rather than
+	// calling os.Exit (which would kill the test process).
+	cmds := map[string]func([]string) int{
+		"validate-policy": ValidatePolicy,
+		"run":             Run,
+		"summarize":       Summarize,
+		"compare":         Compare,
+		"init":            InitProject,
+	}
+	for name, fn := range cmds {
+		t.Run(name, func(t *testing.T) {
+			if code := fn([]string{"-no-such-flag"}); code != 2 {
+				t.Errorf("%s(-no-such-flag) = %d, want 2", name, code)
+			}
+		})
+	}
+}
+
+func TestHelpFlagExitsZero(t *testing.T) {
+	if code := Summarize([]string{"-h"}); code != 0 {
+		t.Errorf("summarize -h = %d, want 0", code)
+	}
+}
+
 func TestCompareTooFewRecords(t *testing.T) {
 	dir := t.TempDir()
 	log := writeFile(t, dir, "r.jsonl", `{"id":"only","score":1,"hard_gates":{"passed":true}}`+"\n")

@@ -9,9 +9,11 @@ import (
 
 // ValidatePolicy loads and validates a policy file.
 func ValidatePolicy(args []string) int {
-	fs := flag.NewFlagSet("validate-policy", flag.ExitOnError)
+	fs := flag.NewFlagSet("validate-policy", flag.ContinueOnError)
 	policyPath := fs.String("policy", "policy.yaml", "path to policy.yaml")
-	_ = fs.Parse(args)
+	if code, ok := parseFlags(fs, args); !ok {
+		return code
+	}
 
 	p, err := policy.Load(*policyPath)
 	if err != nil {

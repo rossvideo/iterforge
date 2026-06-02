@@ -12,12 +12,14 @@ import (
 // Compare diffs two runs and recommends keep vs promote. It returns 0 only when
 // the recommendation is to promote, else 3 (or 1 on error), so scripts can gate.
 func Compare(args []string) int {
-	fs := flag.NewFlagSet("compare", flag.ExitOnError)
+	fs := flag.NewFlagSet("compare", flag.ContinueOnError)
 	resultsPath := fs.String("results", "logs/results.jsonl", "path to results.jsonl")
 	policyPath := fs.String("policy", "policy.yaml", "path to policy.yaml")
 	baselineID := fs.String("baseline", "", "baseline record id (default: best run)")
 	candidateID := fs.String("candidate", "", "candidate record id (default: latest run)")
-	_ = fs.Parse(args)
+	if code, ok := parseFlags(fs, args); !ok {
+		return code
+	}
 
 	records, err := resultlog.Read(*resultsPath)
 	if err != nil {

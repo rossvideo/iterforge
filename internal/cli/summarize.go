@@ -46,13 +46,15 @@ func toBrief(r resultlog.Record) brief {
 
 // Summarize reports campaign-level statistics over the results log.
 func Summarize(args []string) int {
-	fs := flag.NewFlagSet("summarize", flag.ExitOnError)
+	fs := flag.NewFlagSet("summarize", flag.ContinueOnError)
 	path := fs.String("results", "logs/results.jsonl", "path to results.jsonl")
 	last := fs.Int("last", 0, "only summarize the most recent N runs (0 = all)")
 	failedOnly := fs.Bool("failed-only", false, "only summarize runs that did not pass gates")
 	since := fs.String("since", "", "only summarize runs at or after this RFC3339 time")
 	jsonOut := fs.Bool("json", false, "emit the summary as JSON")
-	_ = fs.Parse(args)
+	if code, ok := parseFlags(fs, args); !ok {
+		return code
+	}
 
 	var sinceTime time.Time
 	if *since != "" {

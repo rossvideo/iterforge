@@ -24,10 +24,12 @@ import (
 
 // Run executes one scored experiment and appends the result to the log.
 func Run(args []string) int {
-	fs := flag.NewFlagSet("run", flag.ExitOnError)
+	fs := flag.NewFlagSet("run", flag.ContinueOnError)
 	note := fs.String("note", "", "hypothesis or experiment note")
 	policyPath := fs.String("policy", "policy.yaml", "path to policy.yaml")
-	_ = fs.Parse(args)
+	if code, ok := parseFlags(fs, args); !ok {
+		return code
+	}
 
 	p, err := policy.Load(*policyPath)
 	if err != nil {

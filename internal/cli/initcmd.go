@@ -10,7 +10,7 @@ import (
 
 // InitProject scaffolds a new IterForge project from a workflow template.
 func InitProject(args []string) int {
-	fs := flag.NewFlagSet("init", flag.ExitOnError)
+	fs := flag.NewFlagSet("init", flag.ContinueOnError)
 	parent := fs.String("dir", ".", "parent directory to create the project in")
 	tmpl := fs.String("template", templates.DefaultTemplate,
 		"workflow template ("+strings.Join(templates.Available(), ", ")+")")
@@ -18,7 +18,9 @@ func InitProject(args []string) int {
 		fmt.Fprintln(fs.Output(), "usage: iterforge init [-dir <parent>] [-template <name>] <project-name>")
 		fs.PrintDefaults()
 	}
-	_ = fs.Parse(args)
+	if code, ok := parseFlags(fs, args); !ok {
+		return code
+	}
 
 	if fs.NArg() != 1 {
 		fs.Usage()
