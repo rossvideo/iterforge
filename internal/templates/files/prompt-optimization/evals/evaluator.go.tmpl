@@ -1,0 +1,182 @@
+package evals
+
+import (
+	"bufio"
+	"encoding/json"
+	"fmt"
+	"os"
+	"os/exec"
+	"strings"
+	"time"
+	"unicode"
+)
+
+// promptPath is the mutable candidate surface: the prompt being optimized.
+const promptPath = "candidates/prompt.txt"
+
+// Example is one golden case. This file is FROZEN during experiments.
+type Example struct {
+	Input    string `json:"input"`
+	Expected string `json:"expected"`
+}
+
+// Result is the machine-readable evaluator output. Metrics carries named
+// signals for the summarizer; Gates carries named hard gates the runner
+// enforces in addition to the primary score.
+type Result struct {
+	Total     int                `json:"total"`
+	Passed    int                `json:"passed"`
+	Failed    int                `json:"failed"`
+	Accuracy  float64            `json:"accuracy"`
+	LatencyMS float64            `json:"latency_ms"`
+	Metrics   map[string]float64 `json:"metrics,omitempty"`
+	Gates     map[string]bool    `json:"gates,omitempty"`
+}
+
+// wellFormed reports whether a model output is a clean single-line answer with
+// no surrounding whitespace or commentary newlines (a format-regression guard).
+func wellFormed(out string) bool {
+	return out != "" && !strings.ContainsAny(out, "\n\r") && out == strings.TrimSpace(out)
+}
+
+// LoadGoldenSet reads JSONL examples from path.
+func LoadGoldenSet(path string) ([]Example, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	var examples []Example
+	s := bufio.NewScanner(f)
+	lineNo := 0
+	for s.Scan() {
+		lineNo++
+		line := s.Bytes()
+		if len(line) == 0 {
+			continue
+		}
+		var e Example
+		if err := json.Unmarshal(line, &e); err != nil {
+			return nil, fmt.Errorf("parse %s line %d: %w", path, lineNo, err)
+		}
+		examples = append(examples, e)
+	}
+	if err := s.Err(); err != nil {
+		return nil, err
+	}
+	if len(examples) == 0 {
+		return nil, fmt.Errorf("golden set is empty: %s", path)
+	}
+	return examples, nil
+}
+
+// Evaluate runs the current prompt against every golden example through the
+// model and scores exact-match accuracy.
+func Evaluate(goldenSetPath string) (Result, error) {
+	examples, err := LoadGoldenSet(goldenSetPath)
+	if err != nil {
+		return Result{}, err
+	}
+	promptBytes, err := os.ReadFile(promptPath)
+	if err != nil {
+		return Result{}, fmt.Errorf("read prompt %s: %w", promptPath, err)
+	}
+	prompt := string(promptBytes)
+
+	start := time.Now()
+	passed, formatOK := 0, 0
+	for _, ex := range examples {
+		out, err := runModel(prompt, ex.Input)
+		if err != nil {
+			return Result{}, err
+		}
+		if wellFormed(out) {
+			formatOK++
+		}
+		if out == ex.Expected {
+			passed++
+		}
+	}
+	total := len(examples)
+	accuracy := float64(passed) / float64(total)
+	formatRate := float64(formatOK) / float64(total)
+	return Result{
+		Total:     total,
+		Passed:    passed,
+		Failed:    total - passed,
+		Accuracy:  accuracy,
+		LatencyMS: float64(time.Since(start).Microseconds()) / 1000.0,
+		Metrics: map[string]float64{
+			"accuracy":       accuracy,
+			"format_ok_rate": formatRate,
+		},
+		// Format regressions are a hard gate: every output must be a clean
+		// single-line answer, independent of whether it matches.
+		Gates: map[string]bool{"format_valid": formatOK == total},
+	}, nil
+}
+
+// runModel sends (prompt, input) to the model and returns its output.
+//
+// If ITERFORGE_MODEL_CMD is set, the evaluator shells out to it: the command
+// receives the prompt in IF_PROMPT and the input in IF_INPUT and must print the
+// normalized text to stdout. This is the hook for a real LLM or API wrapper.
+//
+// When unset, a deterministic built-in stub interprets the prompt's directives,
+// so the project runs and is testable with no external dependencies.
+func runModel(prompt, input string) (string, error) {
+	cmdStr := strings.TrimSpace(os.Getenv("ITERFORGE_MODEL_CMD"))
+	if cmdStr == "" {
+		return stubModel(prompt, input), nil
+	}
+	cmd := exec.Command("sh", "-c", cmdStr)
+	cmd.Env = append(os.Environ(), "IF_PROMPT="+prompt, "IF_INPUT="+input)
+	out, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("model command %q failed: %w", cmdStr, err)
+	}
+	return strings.TrimRight(string(out), "\n"), nil
+}
+
+// stubModel is a deterministic stand-in for an instruction-following model. It
+// applies only the directives named in the prompt, so editing the prompt
+// changes the score — which is the point of the loop.
+func stubModel(prompt, input string) string {
+	doLower := strings.Contains(prompt, "lowercase")
+	doStrip := strings.Contains(prompt, "punct")
+	doCollapse := strings.Contains(prompt, "collapse")
+
+	s := input
+	if doLower {
+		s = strings.ToLower(s)
+	}
+
+	var b strings.Builder
+	lastSpace := true
+	for _, r := range s {
+		switch {
+		case unicode.IsLetter(r) || unicode.IsDigit(r):
+			b.WriteRune(r)
+			lastSpace = false
+		case unicode.IsSpace(r) || ((unicode.IsPunct(r) || unicode.IsSymbol(r)) && doStrip):
+			if doCollapse {
+				if !lastSpace {
+					b.WriteByte(' ')
+					lastSpace = true
+				}
+			} else {
+				b.WriteByte(' ')
+				lastSpace = false
+			}
+		default:
+			b.WriteRune(r)
+			lastSpace = false
+		}
+	}
+	out := b.String()
+	if doCollapse {
+		out = strings.TrimSpace(out)
+	}
+	return out
+}

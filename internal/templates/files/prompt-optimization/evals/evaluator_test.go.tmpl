@@ -1,0 +1,19 @@
+package evals
+
+import "testing"
+
+func TestStubModelFollowsAllDirectives(t *testing.T) {
+	prompt := "lowercase\nstrip-punctuation\ncollapse-spaces"
+	got := stubModel(prompt, "  Hello,   WORLD!  ")
+	if got != "hello world" {
+		t.Errorf("stubModel = %q, want %q", got, "hello world")
+	}
+}
+
+func TestStubModelObeysOnlyNamedDirectives(t *testing.T) {
+	// Without the lowercase directive, case is preserved.
+	got := stubModel("collapse-spaces", "Hello   World")
+	if got != "Hello World" {
+		t.Errorf("stubModel = %q, want %q", got, "Hello World")
+	}
+}

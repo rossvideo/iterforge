@@ -1,0 +1,46 @@
+NOTE ?= baseline
+RESULTS := logs/results.jsonl
+
+.PHONY: help fmt vet test check run baseline summarize clean reset-results
+
+help:
+	@echo "IterForge project: __MODULE__"
+	@echo ""
+	@echo "Targets:"
+	@echo "  make check                fmt check, vet, and tests"
+	@echo "  make run NOTE='message'   run one scored experiment"
+	@echo "  make baseline             run one baseline experiment"
+	@echo "  make summarize            summarize $(RESULTS)"
+	@echo "  make fmt                  format Go code"
+	@echo "  make clean                clear build/test cache"
+	@echo "  make reset-results        empty the results log"
+
+fmt:
+	@gofmt -w candidates evals cmd
+
+vet:
+	@go vet ./...
+
+test:
+	@go test ./...
+
+check:
+	@test -z "$$(gofmt -l candidates evals cmd)" || \
+		(echo "Go files need formatting:"; gofmt -l candidates evals cmd; exit 1)
+	@go vet ./...
+	@go test ./...
+
+run:
+	@go run ./cmd/runexp -note "$(NOTE)"
+
+baseline:
+	@$(MAKE) run NOTE="baseline"
+
+summarize:
+	@go run ./cmd/summarize
+
+clean:
+	@go clean -cache -testcache
+
+reset-results:
+	@: > $(RESULTS)

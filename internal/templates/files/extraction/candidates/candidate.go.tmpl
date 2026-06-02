@@ -1,0 +1,43 @@
+package candidates
+
+import (
+	"regexp"
+	"strings"
+)
+
+// Fields is the structured output extracted from one raw record.
+type Fields struct {
+	Email string `json:"email"`
+	Phone string `json:"phone"`
+}
+
+var (
+	emailRe = regexp.MustCompile(`[\w.+-]+@[\w-]+\.[\w.-]+`)
+	phoneRe = regexp.MustCompile(`\d[\d\s().-]{6,}\d`)
+)
+
+// Extract pulls structured fields out of a raw text record.
+//
+// This is the mutable candidate surface. Improve the extraction (more fields,
+// better normalization, fewer false positives) but do not read the golden set
+// or special-case its examples.
+func Extract(input string) Fields {
+	var f Fields
+	if m := emailRe.FindString(input); m != "" {
+		f.Email = strings.ToLower(m)
+	}
+	if m := phoneRe.FindString(input); m != "" {
+		f.Phone = digitsOnly(m)
+	}
+	return f
+}
+
+func digitsOnly(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		if r >= '0' && r <= '9' {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
+}

@@ -1,0 +1,18 @@
+package candidates
+
+import "testing"
+
+func TestExtract(t *testing.T) {
+	got := Extract("John Doe <John@Example.COM> (555) 123-4567")
+	if got.Email != "john@example.com" {
+		t.Errorf("email = %q, want john@example.com", got.Email)
+	}
+	if got.Phone != "5551234567" {
+		t.Errorf("phone = %q, want 5551234567", got.Phone)
+	}
+
+	empty := Extract("no contact details here")
+	if empty.Email != "" || empty.Phone != "" {
+		t.Errorf("expected empty fields, got %+v", empty)
+	}
+}

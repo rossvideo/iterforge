@@ -1,0 +1,157 @@
+package main
+
+import (
+	"bufio"
+	"encoding/json"
+	"flag"
+	"fmt"
+	"os"
+	"path/filepath"
+	"sort"
+	"strconv"
+	"strings"
+	"time"
+
+	"__MODULE__/evals"
+)
+
+type record struct {
+	TimestampUTC  string             `json:"timestamp_utc"`
+	Note          string             `json:"note"`
+	PrimaryMetric string             `json:"primary_metric"`
+	Score         float64            `json:"score"`
+	Passed        bool               `json:"passed"`
+	Failures      []string           `json:"failures"`
+	Metrics       map[string]float64 `json:"metrics,omitempty"`
+	Gates         map[string]bool    `json:"gates,omitempty"`
+	Eval          evals.Result       `json:"eval"`
+}
+
+func main() {
+	note := flag.String("note", "", "hypothesis or experiment note")
+	policyPath := flag.String("policy", "policy.yaml", "path to policy.yaml")
+	flag.Parse()
+
+	pol := loadPolicy(*policyPath)
+
+	res, err := evals.Evaluate(pol.goldenSet)
+	if err != nil {
+		fatal(err)
+	}
+
+	var failures []string
+	if res.Accuracy < pol.minAccuracy {
+		failures = append(failures, fmt.Sprintf("accuracy %.4f < min_accuracy %.4f", res.Accuracy, pol.minAccuracy))
+	}
+	// Evaluator-reported gates are additional hard gates beyond the primary
+	// score. Sorted for deterministic output.
+	names := make([]string, 0, len(res.Gates))
+	for name := range res.Gates {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		if !res.Gates[name] {
+			failures = append(failures, "gate failed: "+name)
+		}
+	}
+	passed := len(failures) == 0
+
+	rec := record{
+		TimestampUTC:  time.Now().UTC().Format(time.RFC3339),
+		Note:          *note,
+		PrimaryMetric: pol.primaryMetric,
+		Score:         res.Accuracy,
+		Passed:        passed,
+		Failures:      failures,
+		Metrics:       res.Metrics,
+		Gates:         res.Gates,
+		Eval:          res,
+	}
+	if err := appendJSONL(pol.results, rec); err != nil {
+		fatal(err)
+	}
+
+	pretty, _ := json.MarshalIndent(rec, "", "  ")
+	fmt.Println(string(pretty))
+	if !passed {
+		os.Exit(2)
+	}
+}
+
+type policy struct {
+	primaryMetric string
+	minAccuracy   float64
+	results       string
+	goldenSet     string
+}
+
+// loadPolicy reads the small YAML subset this starter needs. Missing files fall
+// back to defaults so the experiment can still run.
+func loadPolicy(path string) policy {
+	p := policy{
+		primaryMetric: "accuracy",
+		minAccuracy:   0.80,
+		results:       "logs/results.jsonl",
+		goldenSet:     "evals/golden_set.jsonl",
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return p
+	}
+	defer f.Close()
+
+	section := ""
+	s := bufio.NewScanner(f)
+	for s.Scan() {
+		line := strings.TrimSpace(s.Text())
+		if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, "-") {
+			continue
+		}
+		if strings.HasSuffix(line, ":") {
+			section = strings.TrimSuffix(line, ":")
+			continue
+		}
+		kv := strings.SplitN(line, ":", 2)
+		if len(kv) != 2 {
+			continue
+		}
+		key := strings.TrimSpace(kv[0])
+		val := strings.Trim(strings.TrimSpace(kv[1]), "\"")
+		switch section + "." + key {
+		case ".primary_metric":
+			p.primaryMetric = val
+		case "hard_gates.min_accuracy":
+			if v, err := strconv.ParseFloat(val, 64); err == nil {
+				p.minAccuracy = v
+			}
+		case "experiment.results_path":
+			p.results = val
+		case "experiment.golden_set_path":
+			p.goldenSet = val
+		}
+	}
+	return p
+}
+
+func appendJSONL(path string, rec record) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	b, err := json.Marshal(rec)
+	if err != nil {
+		return err
+	}
+	_, err = f.Write(append(b, '\n'))
+	return err
+}
+
+func fatal(err error) {
+	fmt.Fprintf(os.Stderr, "error: %v\n", err)
+	os.Exit(1)
+}

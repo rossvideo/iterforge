@@ -1,0 +1,46 @@
+# __MODULE__
+
+An IterForge **prompt-optimization** experiment loop, scaffolded by
+`iterforge init`.
+
+> Program the research loop, not every experiment.
+
+## Task
+
+Optimize a prompt (`candidates/prompt.txt`) so a model normalizes text to match
+`evals/golden_set.jsonl`. The candidate surface is the prompt itself — not code.
+
+## What is mutable vs frozen
+
+- Mutable surface: `candidates/` (the prompt) and `logs/agent_journal.md`.
+- Frozen surface: `evals/`, `cmd/`, `policy.yaml`, `go.mod`.
+
+Edit the prompt. Do not edit the evaluator, the golden set, or the results log.
+
+## The model
+
+The evaluator calls a model for each example. By default it uses a deterministic
+built-in stub that follows the directives named in the prompt (`lowercase`,
+`strip-punctuation`/`punct`, `collapse-spaces`/`collapse`), so the project runs
+with no API key.
+
+To use a real model, set `ITERFORGE_MODEL_CMD`. The command receives the prompt
+in `IF_PROMPT` and the input in `IF_INPUT`, and must print the result to stdout:
+
+    export ITERFORGE_MODEL_CMD='python model.py'   # reads $IF_PROMPT, $IF_INPUT
+
+## The loop
+
+    make run NOTE="add an explicit lowercase rule"
+    make summarize
+    make check
+
+## Score
+
+Accuracy = exact-match outputs / total examples. Hard gate `min_accuracy` is in
+`policy.yaml`. Removing a directive from the prompt lowers the score — try it.
+
+## Adapt it
+
+Swap the task by changing `golden_set.jsonl` and the model contract, then iterate
+on the prompt. Keep the mutable/frozen split intact.

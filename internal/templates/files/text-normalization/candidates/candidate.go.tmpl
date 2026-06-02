@@ -1,0 +1,30 @@
+package candidates
+
+import (
+	"strings"
+	"unicode"
+)
+
+// Transform is the mutable candidate function.
+//
+// You (or an agent) may improve this implementation, but must not read
+// evaluator files, special-case golden examples, or weaken the task semantics.
+func Transform(input string) string {
+	var b strings.Builder
+	lastWasSpace := true
+
+	for _, r := range strings.ToLower(input) {
+		switch {
+		case unicode.IsLetter(r) || unicode.IsDigit(r):
+			b.WriteRune(r)
+			lastWasSpace = false
+		case unicode.IsSpace(r) || unicode.IsPunct(r) || unicode.IsSymbol(r):
+			if !lastWasSpace {
+				b.WriteByte(' ')
+				lastWasSpace = true
+			}
+		}
+	}
+
+	return strings.TrimSpace(b.String())
+}

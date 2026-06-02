@@ -1,0 +1,35 @@
+# __MODULE__
+
+An IterForge **extraction** experiment loop, scaffolded by `iterforge init`.
+
+> Program the research loop, not every experiment.
+
+## Task
+
+Extract structured fields (email, phone) from raw text records. The candidate
+is `candidates.Extract`; the evaluator scores **field-level exact-match
+accuracy** against `evals/golden_set.jsonl`.
+
+## What is mutable vs frozen
+
+- Mutable surface: `candidates/` and `logs/agent_journal.md`.
+- Frozen surface: `evals/`, `cmd/`, `policy.yaml`, `go.mod`.
+
+Improve the extractor. Do not edit the evaluator, the golden set, or the
+results log.
+
+## The loop
+
+    make run NOTE="add phone normalization"
+    make summarize
+    make check
+
+## Score
+
+Accuracy = correct fields / total fields. Hard gate `min_accuracy` is in
+`policy.yaml`. A run below the gate exits non-zero and is recorded as failed.
+
+## Adapt it
+
+Add fields to `candidates.Fields` and `evals.Example`, extend the evaluator's
+scoring, and grow `golden_set.jsonl`. Keep the mutable/frozen split intact.

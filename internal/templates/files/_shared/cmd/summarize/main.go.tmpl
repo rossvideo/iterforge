@@ -1,0 +1,97 @@
+package main
+
+import (
+	"bufio"
+	"encoding/json"
+	"flag"
+	"fmt"
+	"os"
+	"sort"
+)
+
+type record struct {
+	TimestampUTC string             `json:"timestamp_utc"`
+	Note         string             `json:"note"`
+	Score        float64            `json:"score"`
+	Passed       bool               `json:"passed"`
+	Metrics      map[string]float64 `json:"metrics,omitempty"`
+}
+
+func main() {
+	path := flag.String("results", "logs/results.jsonl", "path to results.jsonl")
+	flag.Parse()
+
+	recs, err := load(*path)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		os.Exit(1)
+	}
+	if len(recs) == 0 {
+		fmt.Println("No experiment records found.")
+		return
+	}
+
+	sort.Slice(recs, func(i, j int) bool { return recs[i].Score > recs[j].Score })
+	best := recs[0]
+	latest := recs[len(recs)-1]
+
+	passed := 0
+	for _, r := range recs {
+		if r.Passed {
+			passed++
+		}
+	}
+
+	fmt.Printf("Records: %d (passed %d / failed %d)\n", len(recs), passed, len(recs)-passed)
+	fmt.Printf("Best score:   %.4f (note=%q)%s\n", best.Score, best.Note, formatMetrics(best.Metrics))
+	fmt.Printf("Latest score: %.4f (note=%q)%s\n", latest.Score, latest.Note, formatMetrics(latest.Metrics))
+}
+
+// formatMetrics renders a record's metrics map deterministically, e.g.
+// "  [accuracy=1.0000 format_ok_rate=1.0000]".
+func formatMetrics(m map[string]float64) string {
+	if len(m) == 0 {
+		return ""
+	}
+	names := make([]string, 0, len(m))
+	for name := range m {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	out := "  ["
+	for i, name := range names {
+		if i > 0 {
+			out += " "
+		}
+		out += fmt.Sprintf("%s=%.4f", name, m[name])
+	}
+	return out + "]"
+}
+
+func load(path string) ([]record, error) {
+	f, err := os.Open(path)
+	if os.IsNotExist(err) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	var recs []record
+	s := bufio.NewScanner(f)
+	lineNo := 0
+	for s.Scan() {
+		lineNo++
+		line := s.Bytes()
+		if len(line) == 0 {
+			continue
+		}
+		var r record
+		if err := json.Unmarshal(line, &r); err != nil {
+			return nil, fmt.Errorf("malformed result on line %d: %w", lineNo, err)
+		}
+		recs = append(recs, r)
+	}
+	return recs, s.Err()
+}

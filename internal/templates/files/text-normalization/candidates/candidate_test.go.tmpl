@@ -1,0 +1,16 @@
+package candidates
+
+import "testing"
+
+func TestTransform(t *testing.T) {
+	cases := map[string]string{
+		"  Hello,   WORLD!  ":      "hello world",
+		"AI--augmented assistance": "ai augmented assistance",
+		"Prompt-Optimization_v2":   "prompt optimization v2",
+	}
+	for in, want := range cases {
+		if got := Transform(in); got != want {
+			t.Errorf("Transform(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

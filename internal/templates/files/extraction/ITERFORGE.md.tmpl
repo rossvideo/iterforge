@@ -1,0 +1,37 @@
+# ITERFORGE
+
+This project is an IterForge extraction experiment loop.
+
+## Contract
+
+    bounded mutable surface
+    + trusted evaluator
+    + cheap repeated trials
+    + clear score
+    + hard gates
+    + audit trail
+    + keep/revert semantics
+    = autonomous improvement loop
+
+## Roles
+
+- The human defines the loop: the fields to extract, the evaluator, the golden
+  set, the score, and the gates.
+- The agent operates inside the loop: it improves `candidates.Extract` and runs
+  scored experiments.
+- The evaluator decides whether progress occurred (field-level accuracy).
+- `logs/results.jsonl` preserves the evidence.
+
+## Rules for the agent
+
+1. Only edit the mutable surface (`candidates/`, `logs/agent_journal.md`).
+2. Never read or special-case the golden set.
+3. Never edit the evaluator or the results log.
+4. State a hypothesis in the run note: `make run NOTE="<hypothesis>"`.
+5. Trust the evaluator score, not your own explanation.
+
+## Extraction-specific failure modes to watch
+
+- Hallucinated fields (returning a value when none exists).
+- Format drift (email case, phone punctuation) — normalize consistently.
+- False positives from greedy regexes matching unrelated text.

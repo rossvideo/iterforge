@@ -1,0 +1,38 @@
+# ITERFORGE
+
+This project is an IterForge prompt-optimization experiment loop.
+
+## Contract
+
+    bounded mutable surface
+    + trusted evaluator
+    + cheap repeated trials
+    + clear score
+    + hard gates
+    + audit trail
+    + keep/revert semantics
+    = autonomous improvement loop
+
+## Roles
+
+- The human defines the loop: the task, the model contract, the golden set, the
+  score, and the gates.
+- The agent operates inside the loop: it edits `candidates/prompt.txt` and runs
+  scored experiments.
+- The evaluator decides whether progress occurred (exact-match accuracy).
+- `logs/results.jsonl` preserves the evidence.
+
+## Rules for the agent
+
+1. Only edit the mutable surface (`candidates/prompt.txt`,
+   `logs/agent_journal.md`).
+2. Never read or special-case the golden set.
+3. Never edit the evaluator or the results log.
+4. State a hypothesis in the run note: `make run NOTE="<hypothesis>"`.
+5. Trust the evaluator score, not your own explanation.
+
+## Prompt-optimization failure modes to watch
+
+- Prompt leakage / commentary in the output instead of just the answer.
+- Overfitting the prompt to memorized examples (forbidden — never read golden).
+- Format regressions when adding new instructions.

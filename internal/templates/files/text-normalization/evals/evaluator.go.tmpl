@@ -1,0 +1,88 @@
+package evals
+
+import (
+	"bufio"
+	"encoding/json"
+	"fmt"
+	"os"
+	"time"
+
+	"__MODULE__/candidates"
+)
+
+// Example is one golden-set case. This file is FROZEN during experiments.
+type Example struct {
+	Input    string `json:"input"`
+	Expected string `json:"expected"`
+}
+
+// Result is the machine-readable evaluator output. Metrics carries named
+// signals for the summarizer; Gates carries named hard gates the runner
+// enforces in addition to the primary score.
+type Result struct {
+	Total     int                `json:"total"`
+	Passed    int                `json:"passed"`
+	Failed    int                `json:"failed"`
+	Accuracy  float64            `json:"accuracy"`
+	LatencyMS float64            `json:"latency_ms"`
+	Metrics   map[string]float64 `json:"metrics,omitempty"`
+	Gates     map[string]bool    `json:"gates,omitempty"`
+}
+
+// LoadGoldenSet reads JSONL examples from path.
+func LoadGoldenSet(path string) ([]Example, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	var examples []Example
+	s := bufio.NewScanner(f)
+	lineNo := 0
+	for s.Scan() {
+		lineNo++
+		line := s.Bytes()
+		if len(line) == 0 {
+			continue
+		}
+		var e Example
+		if err := json.Unmarshal(line, &e); err != nil {
+			return nil, fmt.Errorf("parse %s line %d: %w", path, lineNo, err)
+		}
+		examples = append(examples, e)
+	}
+	if err := s.Err(); err != nil {
+		return nil, err
+	}
+	if len(examples) == 0 {
+		return nil, fmt.Errorf("golden set is empty: %s", path)
+	}
+	return examples, nil
+}
+
+// Evaluate runs the candidate against every golden example and scores accuracy.
+func Evaluate(goldenSetPath string) (Result, error) {
+	examples, err := LoadGoldenSet(goldenSetPath)
+	if err != nil {
+		return Result{}, err
+	}
+
+	start := time.Now()
+	passed := 0
+	for _, ex := range examples {
+		if candidates.Transform(ex.Input) == ex.Expected {
+			passed++
+		}
+	}
+	total := len(examples)
+	accuracy := float64(passed) / float64(total)
+	return Result{
+		Total:     total,
+		Passed:    passed,
+		Failed:    total - passed,
+		Accuracy:  accuracy,
+		LatencyMS: float64(time.Since(start).Microseconds()) / 1000.0,
+		Metrics:   map[string]float64{"accuracy": accuracy},
+	}, nil
+}

@@ -1,0 +1,41 @@
+# __MODULE__
+
+An IterForge experiment loop scaffolded by `iterforge init`.
+
+> Program the research loop, not every experiment.
+
+## What is mutable vs frozen
+
+- Mutable surface: `candidates/` and `logs/agent_journal.md`.
+- Frozen surface: `evals/`, `cmd/`, `policy.yaml`, `go.mod`.
+
+Improve the candidate. Do not edit the evaluator, the golden set, or the
+results log.
+
+## The loop
+
+Run one scored experiment:
+
+    make run NOTE="trim and lowercase"
+
+Each run scores `candidates.Transform` against `evals/golden_set.jsonl` and
+appends one JSON line to `logs/results.jsonl`.
+
+Summarize progress:
+
+    make summarize
+
+Before considering a change complete:
+
+    make check
+
+## Score
+
+The primary metric is accuracy (fraction of golden cases matched exactly), with
+a hard gate `min_accuracy` defined in `policy.yaml`. A run that drops below the
+gate exits non-zero and is recorded as failed.
+
+## Adapt it
+
+Replace the task: change `candidates.Transform`, the `evals` evaluator, and
+`golden_set.jsonl` to your problem. Keep the mutable/frozen split intact.
