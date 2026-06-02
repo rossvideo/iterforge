@@ -1,0 +1,27 @@
+package candidates
+
+import "strings"
+
+// Score returns a relevance score for a document given a query; higher scores
+// rank earlier. This baseline counts shared lowercase tokens.
+//
+// This is the mutable candidate surface. Improve the scorer (term weighting,
+// stemming, phrase/proximity matching, length normalization) without reading
+// the golden set or special-casing its queries.
+func Score(query, doc string) float64 {
+	inDoc := map[string]bool{}
+	for _, t := range tokenize(doc) {
+		inDoc[t] = true
+	}
+	overlap := 0.0
+	for _, t := range tokenize(query) {
+		if inDoc[t] {
+			overlap++
+		}
+	}
+	return overlap
+}
+
+func tokenize(s string) []string {
+	return strings.Fields(strings.ToLower(s))
+}

@@ -1,0 +1,37 @@
+# __MODULE__
+
+An IterForge **ranking** experiment loop, scaffolded by `iterforge init`.
+
+> Program the research loop, not every experiment.
+
+## Task
+
+Rank each query's documents by relevance. The candidate is `candidates.Score`
+(query, doc → score); the evaluator orders docs by that score and measures
+**NDCG** (primary) and **MRR** against graded relevance labels in
+`evals/golden_set.jsonl`.
+
+## What is mutable vs frozen
+
+- Mutable surface: `candidates/` (the scorer) and `logs/agent_journal.md`.
+- Frozen surface: `evals/`, `cmd/`, `policy.yaml`, `go.mod`.
+
+Improve the scorer. Do not edit the evaluator, the golden set, or the results
+log.
+
+## The loop
+
+    make run NOTE="add term weighting"
+    make summarize
+    make check
+
+## Score
+
+Primary metric is mean NDCG across queries (0..1); `iterforge summarize` also
+shows MRR. Hard gate `min_accuracy` is in `policy.yaml`.
+
+## Adapt it
+
+Swap in your queries and judgments in `golden_set.jsonl`, extend `Doc` with the
+features your scorer needs, and iterate on `candidates.Score`. Keep the
+mutable/frozen split intact.

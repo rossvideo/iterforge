@@ -57,6 +57,19 @@ to stdout. This is the pattern for any external-model / API-backed evaluator.
 Editing the prompt changes the score (e.g. removing the `lowercase` directive
 drops accuracy), so the optimization loop is real, not cosmetic.
 
+### ranking
+
+| | |
+|---|---|
+| Mutable | `candidates.Score(query, doc) float64` |
+| Evaluator | orders docs by score; mean NDCG (primary) + MRR vs graded labels |
+| Golden shape | `{"query": "...", "docs": [{"text": "...", "rel": 3}, ...]}` |
+| Primary metric | `ndcg` |
+| Hard gates | `min_accuracy`, `max_latency_ms`, `max_failures` |
+
+Baseline scorer is token overlap. Watch for overfitting to visible queries,
+gaming NDCG while MRR/tail relevance regresses, and nondeterministic tie-breaking.
+
 ## Acceptance
 
 Every template is generated and verified to pass `make check`, `make baseline`,
@@ -65,7 +78,7 @@ per-template generation test).
 
 ## Not yet shipped
 
-RAG retrieval/chunking, code-repair, and ranking templates need extra
-infrastructure (a retriever, a sandbox, a ranking dataset) and are deliberately
-omitted from the deterministic starter set. The `prompt-optimization` template's
-`ITERFORGE_MODEL_CMD` hook is the model for wiring them to external systems.
+RAG retrieval/chunking and code-repair templates need extra infrastructure (a
+retriever, a sandbox) and are deliberately omitted from the deterministic
+starter set. The `prompt-optimization` template's `ITERFORGE_MODEL_CMD` hook is
+the model for wiring them to external systems.

@@ -1,0 +1,15 @@
+package candidates
+
+import "testing"
+
+func TestScoreRanksByOverlap(t *testing.T) {
+	q := "database query optimization"
+	relevant := Score(q, "database query optimization techniques")
+	unrelated := Score(q, "fast car racing")
+	if !(relevant > unrelated) {
+		t.Errorf("relevant=%v should outscore unrelated=%v", relevant, unrelated)
+	}
+	if Score(q, "nothing in common here") != 0 {
+		t.Errorf("expected zero overlap score")
+	}
+}

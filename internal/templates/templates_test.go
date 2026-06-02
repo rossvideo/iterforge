@@ -9,7 +9,7 @@ import (
 
 func TestAvailableIncludesBuiltinTemplates(t *testing.T) {
 	got := Available()
-	for _, want := range []string{"extraction", "prompt-optimization", "text-normalization"} {
+	for _, want := range []string{"extraction", "prompt-optimization", "ranking", "text-normalization"} {
 		found := false
 		for _, n := range got {
 			if n == want {

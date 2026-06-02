@@ -1,0 +1,37 @@
+# ITERFORGE
+
+This project is an IterForge ranking experiment loop.
+
+## Contract
+
+    bounded mutable surface
+    + trusted evaluator
+    + cheap repeated trials
+    + clear score
+    + hard gates
+    + audit trail
+    + keep/revert semantics
+    = autonomous improvement loop
+
+## Roles
+
+- The human defines the loop: the queries, relevance judgments, the evaluator,
+  the score, and the gates.
+- The agent operates inside the loop: it improves `candidates.Score` and runs
+  scored experiments.
+- The evaluator decides whether progress occurred (NDCG / MRR).
+- `logs/results.jsonl` preserves the evidence.
+
+## Rules for the agent
+
+1. Only edit the mutable surface (`candidates/`, `logs/agent_journal.md`).
+2. Never read or special-case the golden set.
+3. Never edit the evaluator or the results log.
+4. State a hypothesis in the run note: `make run NOTE="<hypothesis>"`.
+5. Trust the evaluator score, not your own explanation.
+
+## Ranking-specific failure modes to watch
+
+- Overfitting the scorer to the visible queries instead of generalizing.
+- Gaming a single metric (NDCG) while MRR or tail relevance regresses.
+- Ties resolved nondeterministically — keep ordering stable.

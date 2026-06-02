@@ -1,0 +1,20 @@
+name: __MODULE__
+primary_metric: ndcg
+score_direction: higher_is_better
+minimum_delta: 0.001
+hard_gates:
+  min_accuracy: 0.50
+  max_latency_ms: 100
+  max_failures: 0
+experiment:
+  timeout_seconds: 30
+  results_path: logs/results.jsonl
+  golden_set_path: evals/golden_set.jsonl
+  mutable_paths:
+    - candidates/
+    - logs/agent_journal.md
+  frozen_paths:
+    - evals/
+    - cmd/
+    - policy.yaml
+    - go.mod

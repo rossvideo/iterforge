@@ -1,0 +1,136 @@
+package evals
+
+import (
+	"bufio"
+	"encoding/json"
+	"fmt"
+	"math"
+	"os"
+	"sort"
+	"time"
+
+	"__MODULE__/candidates"
+)
+
+// Doc is one candidate document with its graded relevance label.
+type Doc struct {
+	Text string  `json:"text"`
+	Rel  float64 `json:"rel"`
+}
+
+// Example is one ranking query: a query string and its judged documents.
+// This file is FROZEN during experiments.
+type Example struct {
+	Query string `json:"query"`
+	Docs  []Doc  `json:"docs"`
+}
+
+// Result is the machine-readable evaluator output. Accuracy is mean NDCG across
+// queries; Metrics also reports mean MRR.
+type Result struct {
+	Total     int                `json:"total"`
+	Passed    int                `json:"passed"`
+	Failed    int                `json:"failed"`
+	Accuracy  float64            `json:"accuracy"`
+	LatencyMS float64            `json:"latency_ms"`
+	Metrics   map[string]float64 `json:"metrics,omitempty"`
+	Gates     map[string]bool    `json:"gates,omitempty"`
+}
+
+// LoadGoldenSet reads JSONL examples from path.
+func LoadGoldenSet(path string) ([]Example, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	var examples []Example
+	s := bufio.NewScanner(f)
+	lineNo := 0
+	for s.Scan() {
+		lineNo++
+		line := s.Bytes()
+		if len(line) == 0 {
+			continue
+		}
+		var e Example
+		if err := json.Unmarshal(line, &e); err != nil {
+			return nil, fmt.Errorf("parse %s line %d: %w", path, lineNo, err)
+		}
+		examples = append(examples, e)
+	}
+	if err := s.Err(); err != nil {
+		return nil, err
+	}
+	if len(examples) == 0 {
+		return nil, fmt.Errorf("golden set is empty: %s", path)
+	}
+	return examples, nil
+}
+
+// Evaluate ranks each query's documents with the candidate scorer and scores
+// the ranking with NDCG (primary) and MRR.
+func Evaluate(goldenSetPath string) (Result, error) {
+	examples, err := LoadGoldenSet(goldenSetPath)
+	if err != nil {
+		return Result{}, err
+	}
+
+	start := time.Now()
+	var ndcgSum, mrrSum float64
+	for _, ex := range examples {
+		order := make([]int, len(ex.Docs))
+		for i := range order {
+			order[i] = i
+		}
+		// Rank by candidate score, descending; stable for deterministic ties.
+		sort.SliceStable(order, func(a, b int) bool {
+			return candidates.Score(ex.Query, ex.Docs[order[a]].Text) >
+				candidates.Score(ex.Query, ex.Docs[order[b]].Text)
+		})
+
+		dcg, mrr := 0.0, 0.0
+		for rank, idx := range order {
+			rel := ex.Docs[idx].Rel
+			dcg += rel / math.Log2(float64(rank+2))
+			if mrr == 0 && rel > 0 {
+				mrr = 1.0 / float64(rank+1)
+			}
+		}
+		ndcgSum += dcg / idealDCG(ex.Docs)
+		mrrSum += mrr
+	}
+
+	n := len(examples)
+	meanNDCG := ndcgSum / float64(n)
+	return Result{
+		Total:     n,
+		Passed:    n,
+		Failed:    0,
+		Accuracy:  meanNDCG,
+		LatencyMS: float64(time.Since(start).Microseconds()) / 1000.0,
+		Metrics: map[string]float64{
+			"ndcg": meanNDCG,
+			"mrr":  mrrSum / float64(n),
+		},
+	}, nil
+}
+
+// idealDCG is the DCG of the relevance-optimal ordering; 1 if there is none, to
+// avoid division by zero (a query with all-zero relevance contributes NDCG 0).
+func idealDCG(docs []Doc) float64 {
+	rels := make([]float64, len(docs))
+	for i, d := range docs {
+		rels[i] = d.Rel
+	}
+	sort.Sort(sort.Reverse(sort.Float64Slice(rels)))
+	idcg := 0.0
+	for rank, rel := range rels {
+		idcg += rel / math.Log2(float64(rank+2))
+	}
+	if idcg == 0 {
+		return 1
+	}
+	return idcg
+}
