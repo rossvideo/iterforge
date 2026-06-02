@@ -13,6 +13,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: '1.22'
+          cache: false  # no go.sum (zero external deps) — nothing to cache
 
       - name: Check (fmt, vet, tests, policy)
         run: make check
